@@ -1,31 +1,31 @@
 # 📚 Lectio Recommender
 
-Sistema de recomendação de livros construído com **TensorFlow**, **Neo4j** e **FastAPI**. Aprende os gostos dos usuários a partir do histórico de compras e recomenda livros com base em similaridade de embeddings.
+A book recommendation system built with **TensorFlow**, **Neo4j**, and **FastAPI**. It learns user preferences from purchase history and recommends books based on embedding similarity.
 
 ---
 
-## 🧠 Como funciona
+## 🧠 How it works
 
-O sistema usa um **two-tower model** — duas redes neurais independentes que aprendem a representar usuários e livros como vetores (embeddings) em um mesmo espaço semântico. Usuários e livros que interagiram ficam próximos nesse espaço; os que nunca interagiram ficam distantes.
+The system uses a **two-tower model** — two independent neural networks that learn to represent users and books as vectors (embeddings) in the same semantic space. Users and books that have interacted are pushed closer together in this space; those that have never interacted are pushed apart.
 
 ```
-Torre do Usuário          Torre do Livro
-   user_id ──►  Embedding ──► Dense ──► vetor [64d]
-   book_id ──►  Embedding ──► Dense ──► vetor [64d]
+User Tower                Book Tower
+   user_id ──►  Embedding ──► Dense ──► vector [64d]
+   book_id ──►  Embedding ──► Dense ──► vector [64d]
                                   │
                              Dot Product
                                   │
                             Score [0, 1]
 ```
 
-Após o treinamento, os vetores são salvos no **Neo4j** como propriedades dos nós. A recomendação em tempo real usa o índice vetorial nativo do Neo4j (HNSW) para buscar os livros mais próximos do usuário em milissegundos.
+After training, the vectors are stored in **Neo4j** as node properties. Real-time recommendations use Neo4j's native vector index (HNSW) to find the closest books to a given user in milliseconds.
 
 ---
 
-## 🏗️ Arquitetura
+## 🏗️ Architecture
 
 ```
-Cliente
+Client
   │
   ▼
 API Gateway (FastAPI)
@@ -36,10 +36,14 @@ API Gateway (FastAPI)
                        embeddings + vector index
 ```
 
-**Pipeline de treinamento** (roda offline):
+### Graph visualization
+
+![Neo4j graph — users and books connected by purchases](docs/graph_visualization.png)
+
+**Training pipeline** (runs offline):
 
 ```
-PostgreSQL ──► Workers 1/2/3 (paralelo) ──► TensorFlow Two-Tower
+PostgreSQL ──► Workers 1/2/3 (parallel) ──► TensorFlow Two-Tower
                                                       │
                                           user_embeddings.npy
                                           book_embeddings.npy
@@ -51,67 +55,67 @@ PostgreSQL ──► Workers 1/2/3 (paralelo) ──► TensorFlow Two-Tower
 
 ---
 
-## 🚀 Rodando o projeto
+## 🚀 Running the project
 
-### Pré-requisitos
+### Prerequisites
 
-- Docker e Docker Compose
+- Docker and Docker Compose
 - Python 3.11+
 - Poetry
 
-### 1. Clone e configure
+### 1. Clone and configure
 
 ```bash
-git clone https://github.com/seu-usuario/lectio-recommender.git
+git clone https://github.com/your-username/lectio-recommender.git
 cd lectio-recommender
 cp .env.example .env
-# edite o .env com suas senhas
+# fill in your credentials in .env
 ```
 
-### 2. Suba os bancos de dados
+### 2. Start the databases
 
 ```bash
 docker compose up db neo4j -d
 ```
 
-### 3. Popule o banco com dados de seed
+### 3. Seed the database
 
 ```bash
 poetry install
 poetry run python3 seed.py
 ```
 
-### 4. Treine o modelo e salve os embeddings no Neo4j
+### 4. Train the model and save embeddings to Neo4j
 
 ```bash
-# Treina o modelo TensorFlow e gera os embeddings
+# Train the TensorFlow model and generate embeddings
 docker compose --profile training up trainer
 
-# Salva os embeddings no Neo4j
+# Save embeddings to Neo4j
 docker compose --profile training up embedding_saver
 ```
 
-### 5. Suba a API
+### 5. Start the API
 
 ```bash
-poetry run uvicorn main:app --reload
+poetry run uvicorn app.main:app --reload
 ```
 
-Acesse a documentação interativa em: `http://localhost:8000/docs`
+Access the interactive docs at: `http://localhost:8000/docs`
 
 ---
 
 ## 📡 Endpoints
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/users/` | Cria um usuário |
-| `GET` | `/users/{id}` | Busca um usuário |
-| `POST` | `/books/` | Cria um livro |
-| `POST` | `/purchases/` | Registra uma compra |
-| `GET` | `/recommendations/{user_id}` | Retorna livros recomendados |
+| Method | Route | Description |
+|--------|-------|-------------|
+| `POST` | `/users/` | Create a user |
+| `GET` | `/users/{id}` | Get a user |
+| `POST` | `/books/` | Create a book |
+| `POST` | `/purchases/` | Register a purchase |
+| `GET` | `/recommendations/{user_id}` | Get book recommendations |
 
-### Exemplo de resposta — recomendações
+### Sample response — recommendations
 
 ```json
 {
@@ -120,9 +124,9 @@ Acesse a documentação interativa em: `http://localhost:8000/docs`
   "books": [
     {
       "id": 137,
-      "title": "Duna",
+      "title": "Dune",
       "author": "Frank Herbert",
-      "genre": "Ficção Científica",
+      "genre": "Science Fiction",
       "price": 49.90,
       "rate": 4.8,
       "score": 0.9423
@@ -133,48 +137,80 @@ Acesse a documentação interativa em: `http://localhost:8000/docs`
 
 ---
 
-## 🗂️ Estrutura do projeto
+## 🗂️ Project structure
 
 ```
 lectio-recommender/
-├── main.py                   # FastAPI app
-├── schemas.py                # Pydantic schemas
-├── crud.py                   # Operações no banco
-├── database.py               # Conexão PostgreSQL
-├── neo4j_connection.py       # Conexão Neo4j
-├── seed.py                   # Geração de dados fictícios
-├── routers/
-│   └── recommendations.py    # Endpoint de recomendação
+├── app/
+│   ├── main.py                   # FastAPI app
+│   ├── schemas.py                # Pydantic schemas
+│   ├── crud.py                   # Database operations
+│   ├── database.py               # PostgreSQL connection
+│   ├── neo4j_connection.py       # Neo4j connection
+│   └── routers/
+│       └── recommendations.py    # Recommendation endpoint
 ├── trainer/
-│   ├── train.py              # Modelo TensorFlow two-tower
+│   ├── train.py                  # TensorFlow two-tower model
 │   └── Dockerfile
 ├── embedding_saver/
-│   ├── worker4.py            # Salva embeddings no Neo4j
+│   ├── worker4.py                # Saves embeddings to Neo4j
 │   └── Dockerfile
-├── embeddings/               # Gerado após o treinamento (gitignored)
+├── seed.py                       # Fake data generation
+├── embeddings/                   # Generated after training (gitignored)
 ├── docker-compose.yml
 ├── Dockerfile
 ├── pyproject.toml
-└── .env.example
+├── .env.example
+└── README.md
 ```
 
 ---
 
 ## 🛠️ Stack
 
-| Camada | Tecnologia |
-|--------|-----------|
+| Layer | Technology |
+|-------|-----------|
 | API | FastAPI + Uvicorn |
 | ORM | SQLAlchemy 2.0 |
-| Banco relacional | PostgreSQL 16 |
-| Banco de grafos | Neo4j 5 |
+| Relational database | PostgreSQL 16 |
+| Graph database | Neo4j 5 |
 | Machine Learning | TensorFlow 2.16 |
-| Validação | Pydantic v2 |
-| Containerização | Docker + Docker Compose |
-| Gerenciamento de deps | Poetry |
+| Validation | Pydantic v2 |
+| Containerization | Docker + Docker Compose |
+| Dependency management | Poetry |
 
 ---
 
-## 📄 Licença
+## 🔮 Future improvements
+
+This project implements the architectural patterns used in production recommendation systems, but deliberately simplifies some operational aspects. Here's what would be needed to take it further:
+
+**Cold start**
+The current approach uses a proxy user with a similar profile (same country and gender) to generate recommendations for new users. A more robust solution would combine content-based filtering (recommending popular books in genres the user selected at signup), a dedicated model trained specifically for new users, and a gradual transition to collaborative filtering as purchase history grows.
+
+**Incremental retraining**
+Today the model is retrained from scratch every time. In production, new purchases arrive continuously and retraining from scratch daily or weekly is expensive. The next step would be implementing incremental learning — updating only the embedding weights affected by new interactions rather than retraining the full model.
+
+**Online learning**
+For systems with high user activity, embeddings can be updated in near real-time using techniques like streaming matrix factorization or lightweight online gradient updates. This ensures recommendations reflect very recent behavior without waiting for a full retraining cycle.
+
+**Hard negative mining**
+The current training uses random negative sampling — books the user never bought are selected at random. Production systems use hard negatives: books the model almost recommends but shouldn't (high similarity score, no purchase). This significantly improves embedding quality and pushes the model to learn more subtle distinctions between relevant and irrelevant items.
+
+**Model quality monitoring**
+There is currently no measurement of whether the model is performing well or degrading over time. A production setup would track offline metrics (Precision@K, Recall@K, NDCG) on a held-out test set after every retraining cycle, and online metrics (click-through rate, conversion) via A/B testing between model versions.
+
+**Recommendation caching**
+Every request hits Neo4j directly. For users with stable purchase histories, embeddings change only after retraining — so recommendations can be cached in Redis with a TTL aligned to the retraining frequency, reducing latency and database load significantly.
+
+**Feature engineering**
+The current model uses only user and book IDs as input. Including additional features — book genre, publication year, price range, user country, and age group — would substantially improve recommendation quality, especially for users with limited purchase history.
+
+**Scheduled retraining pipeline**
+The training job is currently triggered manually. The natural next step is an orchestrated pipeline (Airflow or Prefect) that monitors the volume of new purchases, triggers retraining automatically when a threshold is reached, evaluates the new model against the current one, and promotes it only if quality metrics improve.
+
+---
+
+## 📄 License
 
 MIT
