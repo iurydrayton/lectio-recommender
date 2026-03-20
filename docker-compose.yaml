@@ -1,0 +1,76 @@
+version: '3.9'
+
+services:
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - neo4j
+  
+  trainer:
+    build:
+      context: .
+      dockerfile: trainer/Dockerfile
+    profiles: ["training"]          # ← não sobe com docker-compose up
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:senha123@db:5432/book_recommender
+    volumes:
+      - ./embeddings:/app/embeddings  # persiste os .npy gerados
+
+  embedding_saver:
+    build:
+      context: .
+      dockerfile: embedding_saver/Dockerfile
+    profiles: ["training"]
+    depends_on:
+      - neo4j
+    environment:
+      - NEO4J_URL=bolt://neo4j:7687
+      - DATABASE_URL=postgresql://postgres:senha123@db:5432/book_recommender
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=senha123
+    volumes:
+      - ./embeddings:/app/embeddings
+
+  db:
+    image: postgres:16
+    container_name: book-recommender-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: senha123
+      POSTGRES_DB: book_recommender
+    ports:
+      - "5432:5432"                    
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  neo4j:  # ← NOVO
+    image: neo4j:latest  # versão estável em 2026
+    container_name: book-recommender-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/senha123   # usuário + senha (mude depois)
+      NEO4J_dbms_memory_heap_initial__size: 512m
+      NEO4J_dbms_memory_heap_max__size: 1024m
+    ports:
+      - "7474:7474"   # Browser (interface visual)
+      - "7687:7687"   # Bolt (conexão Python)
+    volumes:
+      - neo4jdata:/data
+    depends_on:
+      - db
+
+volumes:
+  pgdata:
+  neo4jdata:

@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+embeddings/
+*.npy
+*.keras
+pgdata/
+neo4jdata/
+.DS_Store
+.vscode/settings.json
